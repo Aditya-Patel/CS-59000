@@ -55,9 +55,9 @@ end
 
 ## Execute with Float16 values for a, b, c, and x_guess
 
-for i in 0:10
-    for j in 0:10
-        for k in 0:10
+for i in -10:10
+    for j in -10:10
+        for k in -10:10
             local a = Float64(i)
             local b = Float64(j)
             local c = Float64(k)
