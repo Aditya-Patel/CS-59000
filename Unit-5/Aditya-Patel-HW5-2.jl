@@ -1,7 +1,9 @@
 ## Add required packages
 using Pkg
-# Pkg.add("CSV"); Pkg.add("DataFrames"); Pkg.add("Convex"); Pkg.add("SCS"); Pkg.add("StatsPlots"); Pkg.add("Shuffle"); Pkg.add("HypothesisTests")
-using Statistics, StatsPlots, CSV, DataFrames, Convex, SCS, Shuffle, HypothesisTests
+# Pkg.add("CSV"); Pkg.add("DataFrames"); Pkg.add("Convex"); Pkg.add("SCS"); Pkg.add("StatsPlots"); Pkg.add("HypothesisTests")
+using Statistics, StatsPlots, CSV, DataFrames, Convex, SCS, Random, HypothesisTests
+
+Random.seed!(42)
 
 ## Import dataset as a DataFrame
 url = "https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-red.csv"
@@ -14,7 +16,7 @@ y = convert(Vector{Float64}, wine_df[:, "quality"])
 ## Train-test split
 function train_test_split(X, y, train_split=0.7)
     n = size(X, 1)
-    idx = shuffle(1:n)
+    idx = Random.shuffle(1:n)
     
     ## Identify the test and train indices
     train_idx = view(idx, 1:floor(Int, train_split*n))
@@ -35,12 +37,12 @@ X_train, X_test, y_train, y_test = train_test_split(X, y, train_split)
 β_uls = Variable(size(X_train, 2))
 
 ## Define problem
-nnls_prob = minimize(sumsquares(y_train - X_train*β_nnls), β_nnls >= 0)
-uls_prob = minimize(sumsquares(y_train - X_train*β_uls))
+nnls_prob = minimize(sumsquares(X_train*β_nnls - y_train), β_nnls >= 0)
+uls_prob = minimize(sumsquares(X_train*β_uls - y_train))
 
 ## Solve the problem for training data
-nnls_sol = solve!(nnls_prob, SCS.Optimizer)
-uls_sol = solve!(uls_prob, SCS.Optimizer)
+nnls_sol = solve!(nnls_prob, SCS.Optimizer, silent=true)
+uls_sol = solve!(uls_prob, SCS.Optimizer, silent=true)
 β_nnls_val = evaluate(β_nnls)
 β_uls_val = evaluate(β_uls)
 
@@ -48,12 +50,14 @@ uls_sol = solve!(uls_prob, SCS.Optimizer)
 β_uls_vals = β_uls.value
 
 ## Evaluate againt test data
-y_pred_nnls = round.(X_test * β_nnls_val)
-y_pred_uls = round.(X_test * β_uls_val)
+y_pred_nnls =(X_test * β_nnls_val)
+y_pred_uls = (X_test * β_uls_val)
 
-## Print coefficients
+## Print coefficients and optimal values
 println("Non-Negative Least Squares coefficients:", β_nnls_val)
 println("Unconstrained Least Squares coefficients:", β_uls_val)
+println("Minimized value of |y-X*β|^2 for NNLS: ", nnls_prob.optval)
+println("Minimized value of |y-X*β|^2 for ULS: ", uls_prob.optval)
 
 ## Compute MSE for both solutions
 mse_nnls = mean((y_test - y_pred_nnls).^2)
