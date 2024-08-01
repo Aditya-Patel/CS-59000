@@ -1,7 +1,7 @@
 ## Add required packages
-# using Pkg
-# Pkg.add("CSV"); Pkg.add("DataFrames"); Pkg.add("Convex"); Pkg.add("SCS"); Pkg.add("StatsPlots"); Pkg.add("Shuffle")
-using Statistics, StatsPlots, CSV, DataFrames, Convex, SCS, Shuffle
+using Pkg
+# Pkg.add("CSV"); Pkg.add("DataFrames"); Pkg.add("Convex"); Pkg.add("SCS"); Pkg.add("StatsPlots"); Pkg.add("Shuffle"); Pkg.add("HypothesisTests")
+using Statistics, StatsPlots, CSV, DataFrames, Convex, SCS, Shuffle, HypothesisTests
 
 ## Import dataset as a DataFrame
 url = "https://archive.ics.uci.edu/ml/machine-learning-databases/wine-quality/winequality-red.csv"
@@ -27,55 +27,47 @@ function train_test_split(X, y, train_split=0.7)
     return X_train, X_test, y_train, y_test
 end
 
-y_pred_uls = []
-y_pred_nnls = []
-
-β_nnls_vals = []
-β_uls_vals = []
-
 train_split = 0.8
+X_train, X_test, y_train, y_test = train_test_split(X, y, train_split)
 
-# for _ in 1:10
-    X_train, X_test, y_train, y_test = train_test_split(X, y, train_split)
+## Define variables
+β_nnls = Variable(size(X_train, 2))
+β_uls = Variable(size(X_train, 2))
 
-    ## Define variables
-    β_nnls = Variable(size(X_train, 2))
-    β_uls = Variable(size(X_train, 2))
+## Define problem
+nnls_prob = minimize(sumsquares(y_train - X_train*β_nnls), β_nnls >= 0)
+uls_prob = minimize(sumsquares(y_train - X_train*β_uls))
 
-    ## Define problem
-    nnls_prob = minimize(sumsquares(X_train*β_nnls - y_train), β_nnls >= 0)
-    uls_prob = minimize(sumsquares(y_train - X_train*β_uls))
+## Solve the problem for training data
+nnls_sol = solve!(nnls_prob, SCS.Optimizer)
+uls_sol = solve!(uls_prob, SCS.Optimizer)
+β_nnls_val = evaluate(β_nnls)
+β_uls_val = evaluate(β_uls)
 
-    ## Solve the problem for training data
-    nnls_sol = solve!(nnls_prob, SCS.Optimizer)
-    uls_sol = solve!(uls_prob, SCS.Optimizer)
-    β_nnls_val = evaluate(β_nnls)
-    β_uls_val = evaluate(β_uls)
+β_nnls_vals = β_nnls.value
+β_uls_vals = β_uls.value
 
-    push!(β_uls_vals, β_uls.value)
-    push!(β_nnls_vals, β_nnls.value)
-
-    ## Evaluate againt test data
-    push!(y_pred_nnls, X_test * β_nnls_val)
-    push!(y_pred_uls, X_test * β_uls_val)
-# end
-
-mean_β_uls = mean.(β_uls_vals)
-mean_β_nnls = mean.(β_nnls_vals)
-
-mean_pred_nnls = mean(y_pred_nnls)
-mean_pred_uls = mean(y_pred_uls)
+## Evaluate againt test data
+y_pred_nnls = round.(X_test * β_nnls_val)
+y_pred_uls = round.(X_test * β_uls_val)
 
 ## Print coefficients
-println("10 Trial Mean Non-Negative Least Squares coefficients:", mean_β_nnls)
-println("10 Trial Mean Unconstrained Least Squares coefficients:", mean_β_uls)
+println("Non-Negative Least Squares coefficients:", β_nnls_val)
+println("Unconstrained Least Squares coefficients:", β_uls_val)
 
 ## Compute MSE for both solutions
-mse_nnls = mean((y_test .- mean_pred_nnls).^2)
-mse_uls = mean((y_test .- mean_pred_uls).^2)
+mse_nnls = mean((y_test - y_pred_nnls).^2)
+mse_uls = mean((y_test - y_pred_uls).^2)
 println("MSE for NNLS:", mse_nnls)
 println("MSE for ULS:", mse_uls)
+println()
 
 ## Plot results
-display(boxplot(y_test, mean_pred_nnls, label="NNLS predictions", xlabel="Actual Quality", ylabel="Predicted Quality", color=:blue))
-display(boxplot(y_test, mean_pred_uls, label="ULS predictions", xlabel="Actual Quality", ylabel="Predicted Quality", color=:red))
+## Distributions of actual quality vs predictions
+display(boxplot(y_test, y_pred_nnls, label="NNLS predictions", xlabel="Actual Quality", ylabel="Predicted Quality", color=:blue))
+display(boxplot(y_test, y_pred_uls, label="ULS predictions", xlabel="Actual Quality", ylabel="Predicted Quality", color=:red))
+
+## Significance testing
+## H0: mean(NNLS) = mean(ULS)
+## H1: mean(NNLS) ≠ mean(ULS)
+OneWayANOVATest(y_pred_nnls, y_pred_uls)

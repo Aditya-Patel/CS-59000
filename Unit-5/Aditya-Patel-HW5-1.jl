@@ -21,8 +21,8 @@ err_c = [ϵ_c(x, h) for x in x_range, h in h_range]
 ## Plot log-log heatmap
 display(heatmap(x_range, h_range, err_a, xlabel="log(x)", ylabel="log(h)",
         title="Log-Log Heatmap of Error\nf'(x)=1/2h * (f(x+h) - f(x-h))",
-        xscale=:log10, yscale=:log10, color=reverse(cgrad(:viridis))))
+        xscale=:log10, yscale=:log10, color=reverse(cgrad(:reds))))
 
 display(heatmap(x_range, h_range, err_c, xlabel="log(x)", ylabel="log(h)",
         title="Log-Log Heatmap of Error\nf'(x)=1/2h * (f(x+h) - f(x-h))",
-        xscale=:log10, yscale=:log10, color=reverse(cgrad(:viridis))))
+        xscale=:log10, yscale=:log10, color=reverse(cgrad(:reds))))
